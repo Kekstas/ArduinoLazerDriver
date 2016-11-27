@@ -1,25 +1,12 @@
-/* Arduino 101: timer and interrupts
-   1: Timer1 compare match interrupt example 
-   more infos: http://www.letmakerobots.com/node/28278
-   created by RobotFreak 
-*/
-
-#define PinLed 13
-
-#define PinA 2
-#define PinB 3
-enum Tranzistors {
-  unknown,
-  tranistorA,
-  tranistorB
-};
-
-Tranzistors ActiveTranzistor = unknown;
+const byte adcPin = 0;
+volatile int adcReading;
+volatile boolean adcDone;
+boolean adcStarted;
 
 void setup()
 {
  
-          noInterrupts();           // disable all interrupts
+          //noInterrupts();           // disable all interrupts
 
 
 // use only one of the following 3 lines
@@ -52,46 +39,71 @@ TCNT1L = 0; // set timer1 low byte to 0
 
 GTCCR = 0; // release all timers
 
+//setting ADC
+ADCSRA =  bit (ADEN);                      // turn ADC on
+ADCSRA |= bit (ADPS0) | bit (ADPS1) | bit (ADPS2);   // Seting Prescaler for  ADC clock --- >128
+ADMUX  =  bit (REFS0) | (adcPin & 0x07);    // AVcc and select input port
 
 
- 
-}
-
-/*
-16.9.5 Phase and Frequency Correct PWM Mode
-
-In phase and frequency correct PWM mode the counter is incremented until the counter value matches either
-the value in ICR1 (WGM13:0 = 8), or the value in OCR1A (WGM13:0 = 9). The counter has then reached the
-TOP and changes the count direction. The TCNT1 value will be equal to TOP for one timer clock cycle. The
-timing diagram for the phase correct and frequency correct PWM mode is shown on Figure 16-9 on page 128.
-The figure shows phase and frequency correct PWM mode when OCR1A or ICR1 is used to define TOP. The
-TCNT1 value is in the timing diagram shown as a histogram for illustrating the dual-slope operation. The
-diagram includes non-inverted and inverted PWM outputs. The small horizontal line marks on the TCNT1 slopes
-represent compare matches between OCR1x and TCNT1. The OC1x Interrupt Flag will be set when a compare
-match occurs.
-
-
-ISR(TIMER1_COMPA_vect)          // timer compare interrupt service routine
-{
-  digitalWrite(PinA, 0);   // toggle LED pin
-  digitalWrite(PinB, 0);   // toggle LED pin
-  delay(500);
   
-  if(ActiveTranzistor!=tranistorB)
-  {
-    ActiveTranzistor=tranistorB;
-    digitalWrite(PinB, 1);
-  }
-  else if(ActiveTranzistor!=tranistorA)
-  {
-    ActiveTranzistor=tranistorA;
-    digitalWrite(PinA, 1);
-  }  
-  digitalWrite(PinLed, digitalRead(PinLed) ^ 1);   // toggle LED pin
+//Interrupts();
+
+
+//DEBUGING
+  Serial.begin(9600);
+  delay(1000);
+  Serial.println ("Test setup"); 
 }
-*/
+
+// ADC complete ISR
+ISR (ADC_vect)
+  {
+  adcReading = ADC;
+  adcDone = true;  
+  }  // end of ADC_vect
+  
+  
 
 void loop()
 {
-  // your program here...
+   
+ // if last reading finished, process it
+  if (adcDone)
+    {
+    adcStarted = false;
+
+    // do something with the reading, for example, print it
+    Serial.println (adcReading);
+    delay (500);
+
+    adcDone = false;
+    }
+    
+  // if we aren't taking a reading, start a new one
+  if (!adcStarted)
+    {
+    adcStarted = true;
+    // start the conversion
+    ADCSRA |= bit (ADSC) | bit (ADIE);
+    }    
+  
+  // do other stuff here
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
