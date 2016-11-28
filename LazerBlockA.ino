@@ -8,9 +8,14 @@
 //
 
 
-#define  MaksimalusPeriodas    1600    // =16MH*100us  y--y
-#define  MinimalusPeriodas     1120    // =16MH*70us   y--y
-#define  PersijungimoPeriodas    80    // =16MH*5us    x--x
+#define  MaksimalusPeriodas    10000    // =16MH*100us  y--y    DEBUG
+#define  MinimalusPeriodas     5000    // =16MH*70us   y--y    DEBUG
+#define  PersijungimoPeriodas  2000    // =16MH*5us    x--x    DEBUG
+
+
+//#define  MaksimalusPeriodas    1600    // =16MH*100us  y--y    Tikras
+//#define  MinimalusPeriodas     1120    // =16MH*70us   y--y    Tikras
+//#define  PersijungimoPeriodas    80    // =16MH*5us    x--x    Tikras 
 #define  PeriodoPotenciometroPin  0
 
 #define  TranzistorAPin 9    // Nekeiciami
@@ -90,13 +95,35 @@ void loop()
     {      
       Serial.print ("adcReading:");    
       Serial.println (adcReading);    
-      
-      DarbinisPeriodas = ((MaksimalusPeriodas-MinimalusPeriodas)/1023*adcReading+MinimalusPeriodas)/2 ;
+
+      unsigned long GalimasReguliavimas= MaksimalusPeriodas-MinimalusPeriodas;
+
+      unsigned long TikrasPeriodas= GalimasReguliavimas*adcReading/1023+MinimalusPeriodas;
+      Serial.print ("TikrasPeriodas:");    
+      Serial.println (TikrasPeriodas);   
+
+  
+      DarbinisPeriodas = TikrasPeriodas/2 ;
+
+
+
+
       TeigiamasOCR1B=DarbinisPeriodas/2-PersijungimoPeriodas/2;
       NeigiamasOCR1A=TeigiamasOCR1B+PersijungimoPeriodas;
 
+
       Serial.print ("DarbinisPeriodas:");    
       Serial.println (DarbinisPeriodas);   
+
+      Serial.print ("NeigiamasOCR1A:");    
+      Serial.println (NeigiamasOCR1A);   
+
+      Serial.print ("TeigiamasOCR1B:");    
+      Serial.println (TeigiamasOCR1B);   
+
+      Serial.println ("-----------------");   
+
+      
 
       RestartTranzistors();//DarbinisPeriodas, TeigiamasOCR1B, NeigiamasOCR1A);
 
