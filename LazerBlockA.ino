@@ -161,6 +161,15 @@ void TikrintiArKeistiBlokoBusena(void)
 }
 
 
+//Timer1 Overflow event 
+ISR(TIMER1_OVF_vect) 
+{
+    Serial.println("Timer Overflow");
+    ICR1  = DarbinisPeriodas ;// compare match register
+    OCR1A = NeigiamasOCR1A;   // turi dviguva buferi
+    OCR1B = TeigiamasOCR1B;   // turi dviguva buferi    
+}
+
  
 //Extra external inputs INTERUPTAS
 ISR(PCINT2_vect) 
@@ -182,7 +191,6 @@ ISR (ADC_vect)
 void SetupTranzistoriuPWM(void)
 {
 
-
       //Reseting Timer1
       TCNT1H = 0; // set timer1 high byte to 0
       TCNT1L = 0; // set timer1 low byte to 0
@@ -190,7 +198,10 @@ void SetupTranzistoriuPWM(void)
       //Setting Timers mode
       TCCR1A = _BV(COM1B1) | _BV(COM1A1) | _BV(COM1A0)  ;   //seting Timer1 Pins 9 ir 10 ; A-tranzas startuoja Uzssidares, B-Atsidares
       TCCR1B=_BV(WGM13)  ;            //  PWM, Phase and Frequency Correct with ICR1   NO CLOCK Source.(TIMERIS ISJUNGAS)
-      
+
+
+      TIFR1=_BV(TOV1);    // cleaning  Overflow Interrupt;
+      TIMSK1=  _BV(TOIE1); // enabling Overflow Interrupt;
 
 }
 
@@ -308,7 +319,7 @@ void TikrintiADC(void)
       adcStarted = true;
       // start the conversion
       ADCSRA |= bit (ADSC) | bit (ADIE);
-      delay(1000);
+      //delay(1000);
     }    
 }
 
