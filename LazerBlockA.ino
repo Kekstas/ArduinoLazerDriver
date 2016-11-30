@@ -8,16 +8,17 @@
 //
 
 
-#define  MaksimalusPeriodas    16000    // =16MH*100us  y--y    DEBUG
-#define  MinimalusPeriodas     11200    // =16MH*70us   y--y    DEBUG
-#define  PersijungimoPeriodas  800    // =16MH*5us    x--x    DEBUG
+#define  MaksimalusPeriodas    64000   // =16MHz*4000us  y--y    DEBUG
+//#define  MaksimalusPeriodas    1600    // =16MHz*100us  y--y    Tikras
 
+#define  MinimalusPeriodas     1120    // =16MHz*70us   y--y    Tikras
 
-//#define  MaksimalusPeriodas    1600    // =16MH*100us  y--y    Tikras
-//#define  MinimalusPeriodas     1120    // =16MH*70us   y--y    Tikras
-//#define  PersijungimoPeriodas    80    // =16MH*5us    x--x    Tikras 
-#define  PeriodoPotenciometroPin  0
+#define MaksimalusPersijungimoPeriodas 12800  // =16MHz*800us    x--x    DEBUG
+//#define MaksimalusPersijungimoPeriodas  160     // =16MHz*5us    x--x    Tikras 
 
+#define MinimalusPersijungimoPeriodas  80     // =16MHz*5us    x--x    Tikras 
+
+#define  PeriodoPotenciometroPin  A0
 
 #define InputMaksimalusLygisPasiektasPin 2  //P4
 #define InputMinimalusLygisPasiektasPin  3  //P5
@@ -192,23 +193,30 @@ void setup()
 /**************************************************************************************************************/
 /********************Pagrindinis Ciklas************************************************************************/
 /**************************************************************************************************************/
- 
+
+void SkaiciuokPeriodus()
+{
+  noInterrupts();
+    unsigned long GalimasReguliavimoDiapazonas= MaksimalusPeriodas-MinimalusPeriodas;
+    unsigned long TikrasPeriodas= GalimasReguliavimoDiapazonas*adcReading/1023+MinimalusPeriodas;
+    DarbinisPeriodas = TikrasPeriodas/2 ;
+
+    unsigned long GalimasPersijungimoPeriodoReguliavimoDiapazonas= MaksimalusPersijungimoPeriodas-MinimalusPersijungimoPeriodas;
+    unsigned long PersijungimoPeriodas= GalimasPersijungimoPeriodoReguliavimoDiapazonas*adcReading/1023+MinimalusPersijungimoPeriodas;
+
+    
+    
+    TeigiamasOCR1B=DarbinisPeriodas/2-PersijungimoPeriodas/2;
+    NeigiamasOCR1A=TeigiamasOCR1B+PersijungimoPeriodas;
+  interrupts();  
+}
 
 void TikrintiADC(void)
 {
     // if last reading finished, process it
     if (adcDone)
     {      
-      unsigned long GalimasReguliavimasDiapazonas= MaksimalusPeriodas-MinimalusPeriodas;
-      unsigned long TikrasPeriodas= GalimasReguliavimasDiapazonas*adcReading/1023+MinimalusPeriodas;
-      Serial.print ("TikrasPeriodas:");    
-      Serial.println (TikrasPeriodas);   
-  
-      DarbinisPeriodas = TikrasPeriodas/2 ;
-
-      TeigiamasOCR1B=DarbinisPeriodas/2-PersijungimoPeriodas/2;
-      NeigiamasOCR1A=TeigiamasOCR1B+PersijungimoPeriodas;
-
+      SkaiciuokPeriodus();
       adcStarted = false;
       adcDone = false;
     }
