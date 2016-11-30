@@ -8,12 +8,12 @@
 //
 
 
-#define  MaksimalusPeriodas    64000   // =16MHz*4000us  y--y    DEBUG
+#define  MaksimalusPeriodas    32000   // =16MHz*2000us  y--y    DEBUG
 //#define  MaksimalusPeriodas    1600    // =16MHz*100us  y--y    Tikras
 
 #define  MinimalusPeriodas     1120    // =16MHz*70us   y--y    Tikras
 
-#define MaksimalusPersijungimoPeriodas 12800  // =16MHz*800us    x--x    DEBUG
+#define MaksimalusPersijungimoPeriodas 6400  // =16MHz*400us    x--x    DEBUG
 //#define MaksimalusPersijungimoPeriodas  160     // =16MHz*5us    x--x    Tikras 
 
 #define MinimalusPersijungimoPeriodas  80     // =16MHz*5us    x--x    Tikras 
@@ -89,15 +89,23 @@ void InputMinimalusLygisPasiektas()
 void IsjungtiTranzistoriuPWM(void)
 {
   TCCR1B &= 0B11111000 ;  //atjungiam Timerio iejimo signala
-  TCNT1H = 0; //Isvalom Timeri
-  TCNT1L=0;   //Isvalom Timeri
+  //TCNT1H = 0; //Isvalom Timeri
+  //TCNT1L=0;   //Isvalom Timeri
   
-  pinMode(OutputTranzistorAPin, OUTPUT); 
-  digitalWrite (OutputTranzistorAPin, LOW); //Isjungiam Isejimo Pinus
+  //pinMode(OutputTranzistorAPin, OUTPUT); 
+  //digitalWrite (OutputTranzistorAPin, LOW); //Isjungiam Isejimo Pinus
   
-  pinMode(OutputTranzistorBPin, OUTPUT); 
-  digitalWrite (OutputTranzistorBPin, LOW); //Isjungiam Isejimo Pinus
+  //pinMode(OutputTranzistorBPin, OUTPUT); 
+  //digitalWrite (OutputTranzistorBPin, LOW); //Isjungiam Isejimo Pinus
   
+  TCCR1B=0;   //uzseinam Timeri i Normalia busena.  
+  TCCR1A = _BV(COM1B1) | _BV(COM1A1)   ;   //seting Timer1 Pins 9 ir 10 ; Clear on Outout Compare
+  
+  TCCR1C=_BV(FOC1A)|_BV(FOC1B);      // Force Outout Compare
+
+  //TCCR1B=_BV(WGM13)  ;  //Seting Timer Back
+  //TCCR1A = _BV(COM1B1) | _BV(COM1A1) | _BV(COM1A0)  ;   //seting Timer1 Pins 9 ir 10 ; A-tranzas startuoja Uzssidares, B-Atsidares
+  SetupTranzistoriuPWM();
   Serial.println ("pwm isjungtas");    
 }
 
@@ -112,8 +120,7 @@ void IjungtiTranzistoriuPWM(void)
     OCR1A = NeigiamasOCR1A;   // turi dviguva buferi
     OCR1B = TeigiamasOCR1B;   // turi dviguva buferi
 
-  
-  TCCR1B |= (1<<CS12)|(1<<CS10) ;  // JUNGIAM timeri prie /1024 Prescalerio  (DEBUG)
+   TCCR1B |= (1<<CS12)|(1<<CS10) ;  // JUNGIAM timeri prie /1024 Prescalerio  (DEBUG)
   //TCCR1B |=           (1<<CS10) ;  //JUNGIAM timeri Tiesiai opie prie 16Mhz
 
 
@@ -174,11 +181,7 @@ ISR (ADC_vect)
  
 void SetupTranzistoriuPWM(void)
 {
-      digitalWrite (OutputTranzistorAPin, LOW);
-      digitalWrite (OutputTranzistorBPin, LOW);
 
-      pinMode(OutputTranzistorAPin, OUTPUT);
-      pinMode(OutputTranzistorBPin, OUTPUT);
 
       //Reseting Timer1
       TCNT1H = 0; // set timer1 high byte to 0
@@ -224,8 +227,15 @@ void SetupExtraExternalInterrupts()
 
 void SetupOutputPins(void)
 {
-   pinMode(OutputBlokoBusenaAktyviPin, OUTPUT);
    digitalWrite (OutputBlokoBusenaAktyviPin, BlokoBusena==IBlokoBusena::Ijungta);
+   pinMode(OutputBlokoBusenaAktyviPin, OUTPUT);
+
+   digitalWrite (OutputTranzistorAPin, LOW);
+   digitalWrite (OutputTranzistorBPin, LOW);
+
+   pinMode(OutputTranzistorAPin, OUTPUT);
+   pinMode(OutputTranzistorBPin, OUTPUT);
+   
 }
 
 void setup()
@@ -264,23 +274,21 @@ void SkaiciuokPeriodus()
     //NeigiamasOCR1A=DarbinisPeriodas/2-PersijungimoPeriodas/2;
     //TeigiamasOCR1B=NeigiamasOCR1A+PersijungimoPeriodas;
 
-Serial.print ("adcReading:");   
-Serial.println (adcReading);   
+//Serial.print ("adcReading:");   
+//Serial.println (adcReading);   
 
-Serial.print ("PersijungimoPeriodas:");   
-Serial.println (PersijungimoPeriodas);   
+//Serial.print ("PersijungimoPeriodas:");   
+//Serial.println (PersijungimoPeriodas);   
 
 
     if(BlokoBusena==IBlokoBusena::Inicijuojama) 
     {
-      Serial.println ("perjungiam bloko busena i isjungta");   
+      Serial.println ("BlokoBusena=Isjungta");
       
       BlokoBusena=IBlokoBusena::Isjungta;
       TikrintiArKeistiBlokoBusena();    
     }
-
-
-    
+ 
   interrupts();  
 }
 
