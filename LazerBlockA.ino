@@ -22,13 +22,13 @@
 
 #define InputMaksimalusLygisPasiektasPin 2  //P4
 #define InputMinimalusLygisPasiektasPin  3  //P5
-#define InputMazgasAEnablePin  4  
+#define InputBlokoBusenaAktyviPin  4  
 
 #define OutputTranzistorAPin 9    // Nekeiciami
 #define OutputTranzistorBPin 10   // Nekeiciami
-#define OutputBusenaKraunamPin  11  // Indikuoja Ar Generatorius ijungtas
-#define OutputBusenaIskraunamPin  12  // Indikuoja Ar Generatorius ijungtas
-#define OutputMazgasAktyvusPin  13  // Indikuoja Ar Generatorius ijungtas
+#define OutputBusenaKraunamPin  11  // Indikuoja Generatorius busena ijungta
+#define OutputBusenaIskraunamPin  12  // Indikuoja Generatorius busena isjungta
+#define OutputBlokoBusenaAktyviPin  13  // Indikuoja Blokas ijungtas
 
 
 volatile int adcReading;
@@ -39,33 +39,76 @@ volatile unsigned long DarbinisPeriodas;
 volatile unsigned long TeigiamasOCR1B;
 volatile unsigned long NeigiamasOCR1A;
 
+//volatile bool BlokoBusenaAktyvi=false;
+//volatile bool InternalBusenaReady=false;
+
+ 
+enum IPWMBusena: byte
+{
+  Kraunam,
+  Iskraunam
+};
+
+ 
+enum IBlokoBusena: byte
+{
+  Inicijuojama,
+  Isjungta,
+  Ijungta  
+};
+
+volatile IPWMBusena PWMBusena=IPWMBusena::Iskraunam;
+volatile IBlokoBusena BlokoBusena=IBlokoBusena::Inicijuojama;
+
+
 
 /**************************************************************************************************************/
 /********************INTERUPTS*********************************************************************************/
 /**************************************************************************************************************/
 //Greitas INTERUPTAS ant InputMinimalusLygisPasiektas
-void IsjungtiTranzistoriuPWM(void)
-{
-  TCCR1B &= 0B11111000 ;
-  TCNT1H = 0; 
-  TCNT1L=0;
-  digitalWrite (OutputTranzistorAPin, LOW);
-  digitalWrite (OutputTranzistorBPin, LOW);
-    
-  Serial.println ("Ijungiam PWM");    
+void InputMaksimalusLygisPasiektas()
+{   
+  IsjungtiTranzistoriuPWM();
   
+  PWMBusena=IPWMBusena::Iskraunam;
+  digitalWrite (OutputBusenaKraunamPin, LOW);
+  digitalWrite (OutputBusenaIskraunamPin, HIGH);
 }
 
 //Greitas INTERUPTAS ant InputMaksimalusLygisPasiektas
+void InputMinimalusLygisPasiektas()
+{
+  PWMBusena=IPWMBusena::Kraunam;
+  digitalWrite (OutputBusenaKraunamPin, HIGH);
+  digitalWrite (OutputBusenaIskraunamPin, LOW);
+    
+  IjungtiTranzistoriuPWM();
+}
+
+void IsjungtiTranzistoriuPWM(void)
+{
+  TCCR1B &= 0B11111000 ;  //atjungiam Timerio iejimo signala
+  TCNT1H = 0; //Isvalom Timeri
+  TCNT1L=0;   //Isvalom Timeri
+
+  digitalWrite (OutputTranzistorAPin, LOW); //Isjungiam Isejimo Pinus
+  digitalWrite (OutputTranzistorBPin, LOW); //Isjungiam Isejimo Pinus
+}
+
+
 void IjungtiTranzistoriuPWM(void)
 {
+    if ( BlokoBusena!=IBlokoBusena::Ijungta) return;
+    if ( PWMBusena!=IPWMBusena::Kraunam) return;
+    
+  
     ICR1  = DarbinisPeriodas ;// compare match register
     OCR1A = NeigiamasOCR1A;   // turi dviguva buferi
     OCR1B = TeigiamasOCR1B;   // turi dviguva buferi
 
   
-  TCCR1B |= (1<<CS12)|(1<<CS10) ;  // IJUNGIAM /1024 Prescaleri  (DEBUG)
-  //TCCR1B |=           (1<<CS10) ;  // IJUNGIAM /1 Prescaleri(Tiesiai opie prie 16Mhz)
+  TCCR1B |= (1<<CS12)|(1<<CS10) ;  // JUNGIAM timeri prie /1024 Prescalerio  (DEBUG)
+  //TCCR1B |=           (1<<CS10) ;  //JUNGIAM timeri Tiesiai opie prie 16Mhz
 
 
   Serial.println ("Ijungiam PWM");    
@@ -83,26 +126,27 @@ void IjungtiTranzistoriuPWM(void)
   Serial.println (TeigiamasOCR1B);   
 
   Serial.println ("-----------------");   
-
-
-
   
 }
  
 //Extra external inputs INTERUPTAS
 ISR(PCINT2_vect) 
 {
-  Serial.println("PCINT2_vect");
-   if (digitalRead(InputMazgasAEnablePin)==1)  
+   if (digitalRead(InputBlokoBusenaAktyviPin)==1)  
    {
-      Serial.println("D4=1");
+      BlokoBusena=IBlokoBusena::Ijungta;
+      IjungtiTranzistoriuPWM();
    }
    else
    {
-       Serial.println("D4=0");
-   }   
+      BlokoBusena=IBlokoBusena::Isjungta;      
+      IsjungtiTranzistoriuPWM();
+   }      
    
-    digitalWrite (OutputMazgasAktyvusPin, digitalRead(InputMazgasAEnablePin)==1);
+   digitalWrite (OutputBlokoBusenaAktyviPin, BlokoBusena==IBlokoBusena::Ijungta);
+
+   Serial.println("PCINT2_vect");
+    
 }
 
 // ADC Nuskaitymas Ivyko INTERUPTAS
@@ -137,11 +181,9 @@ void SetupTranzistoriuPWM(void)
 
 void SetupADCInterupts(void)
 {
-    noInterrupts();
     ADCSRA =  bit (ADEN);                      // turn ADC on
     ADCSRA |= bit (ADPS0) | bit (ADPS1) | bit (ADPS2);   // Seting Prescaler for  ADC clock --- >128
     ADMUX  =  bit (REFS0) | (PeriodoPotenciometroPin & 0x07);    // AVcc and select input port  
-    interrupts();  
 }
 
 void SetupFastExternalInterrupts(void)
@@ -153,27 +195,25 @@ void SetupFastExternalInterrupts(void)
     pinMode(InputMinimalusLygisPasiektasPin, INPUT_PULLUP);
 
         
-    attachInterrupt (digitalPinToInterrupt (InputMaksimalusLygisPasiektasPin), IsjungtiTranzistoriuPWM, FALLING ); 
-    attachInterrupt (digitalPinToInterrupt (InputMinimalusLygisPasiektasPin), IjungtiTranzistoriuPWM, FALLING ); 
+    attachInterrupt (digitalPinToInterrupt (InputMaksimalusLygisPasiektasPin), InputMaksimalusLygisPasiektas, FALLING ); 
+    attachInterrupt (digitalPinToInterrupt (InputMinimalusLygisPasiektasPin), InputMinimalusLygisPasiektas, FALLING ); 
 }
 
 void SetupExtraExternalInterrupts()
 {  
-  noInterrupts();    // switch interrupts off while messing with their settings       
-  
-  digitalWrite(InputMazgasAEnablePin, HIGH);   // Configure internal pull-up resistor
-  pinMode(InputMazgasAEnablePin, INPUT_PULLUP);    // Pin A2 is input to which a switch is connected
+  digitalWrite(InputBlokoBusenaAktyviPin, HIGH);   // Configure internal pull-up resistor
+  pinMode(InputBlokoBusenaAktyviPin, INPUT_PULLUP);    // Pin A2 is input to which a switch is connected
   
   PCIFR = 0;                // cleaning External Interrupt register
   PCICR = bit (PCIE2);      // Enable PCINT1 interrupt
   PCMSK2 =  bit (PCINT20);  // Enabling interupt on PCINT20 = digital Pin 4
-  
-  interrupts();  
+
 }
 
 void SetupOutputPins(void)
 {
-   pinMode(OutputMazgasAktyvusPin, OUTPUT);
+   pinMode(OutputBlokoBusenaAktyviPin, OUTPUT);
+   digitalWrite (OutputBlokoBusenaAktyviPin, BlokoBusena==IBlokoBusena::Ijungta);
 }
 
 void setup()
@@ -181,13 +221,13 @@ void setup()
     //DEBUGING
     Serial.begin(9600);
     
-    SetupADCInterupts();
-    SetupFastExternalInterrupts();
-    SetupExtraExternalInterrupts(); 
-    SetupOutputPins(); 
-    SetupTranzistoriuPWM();
-    
-    //RestartTranzistors();    
+    noInterrupts();
+      SetupADCInterupts();
+      SetupFastExternalInterrupts();
+      SetupExtraExternalInterrupts(); 
+      SetupOutputPins(); 
+      SetupTranzistoriuPWM();
+    interrupts();  
 }
  
 /**************************************************************************************************************/
@@ -202,12 +242,13 @@ void SkaiciuokPeriodus()
     DarbinisPeriodas = TikrasPeriodas/2 ;
 
     unsigned long GalimasPersijungimoPeriodoReguliavimoDiapazonas= MaksimalusPersijungimoPeriodas-MinimalusPersijungimoPeriodas;
-    unsigned long PersijungimoPeriodas= GalimasPersijungimoPeriodoReguliavimoDiapazonas*adcReading/1023+MinimalusPersijungimoPeriodas;
+    unsigned long PersijungimoPeriodas = GalimasPersijungimoPeriodoReguliavimoDiapazonas*adcReading/1023 + MinimalusPersijungimoPeriodas;
 
     
     
     TeigiamasOCR1B=DarbinisPeriodas/2-PersijungimoPeriodas/2;
     NeigiamasOCR1A=TeigiamasOCR1B+PersijungimoPeriodas;
+    BlokoBusena=IBlokoBusena::Isjungta;
   interrupts();  
 }
 
