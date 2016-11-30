@@ -8,9 +8,9 @@
 //
 
 
-#define  MaksimalusPeriodas    10000    // =16MH*100us  y--y    DEBUG
-#define  MinimalusPeriodas     5000    // =16MH*70us   y--y    DEBUG
-#define  PersijungimoPeriodas  2000    // =16MH*5us    x--x    DEBUG
+#define  MaksimalusPeriodas    16000    // =16MH*100us  y--y    DEBUG
+#define  MinimalusPeriodas     11200    // =16MH*70us   y--y    DEBUG
+#define  PersijungimoPeriodas  800    // =16MH*5us    x--x    DEBUG
 
 
 //#define  MaksimalusPeriodas    1600    // =16MH*100us  y--y    Tikras
@@ -18,130 +18,218 @@
 //#define  PersijungimoPeriodas    80    // =16MH*5us    x--x    Tikras 
 #define  PeriodoPotenciometroPin  0
 
-#define  TranzistorAPin 9    // Nekeiciami
-#define  TranzistorBPin 10   // Nekeiciami
 
+#define InputMaksimalusLygisPasiektasPin 2  //P4
+#define InputMinimalusLygisPasiektasPin  3  //P5
+#define InputMazgasAEnablePin  4  
+
+#define OutputTranzistorAPin 9    // Nekeiciami
+#define OutputTranzistorBPin 10   // Nekeiciami
+#define OutputBusenaKraunamPin  11  // Indikuoja Ar Generatorius ijungtas
+#define OutputBusenaIskraunamPin  12  // Indikuoja Ar Generatorius ijungtas
+#define OutputMazgasAktyvusPin  13  // Indikuoja Ar Generatorius ijungtas
 
 
 volatile int adcReading;
 volatile boolean adcDone;
 boolean adcStarted;
 
-unsigned long DarbinisPeriodas;
-unsigned long TeigiamasOCR1B;
-unsigned long NeigiamasOCR1A;
+volatile unsigned long DarbinisPeriodas;
+volatile unsigned long TeigiamasOCR1B;
+volatile unsigned long NeigiamasOCR1A;
 
 
-
-void RestartTranzistors(void)//unsigned long Period, unsigned long TeigiamasOCR1B, unsigned long NeigiamasOCR1A)
-{    
-      digitalWrite (TranzistorAPin, LOW);
-      digitalWrite (TranzistorBPin, LOW);
-      
-      pinMode(TranzistorAPin, OUTPUT);
-      pinMode(TranzistorBPin, OUTPUT);
-      
-      //halting timer0 and timer1 only
-      GTCCR = (1<<TSM)|(0<<PSRASY)|(1<<PSRSYNC); 
-
-      //Reseting Timer1
-      TCNT1H = 0; // set timer1 high byte to 0
-      TCNT1L = 0; // set timer1 low byte to 0
-      
-      //Setting Timers mode
-      TCCR1A = _BV(COM1A1) | _BV(COM1B1) | _BV(COM1B0)  ;  
-      //TCCR1B=_BV(WGM13) |_BV(CS10);       //  PWM, Phase and Frequency Correct with TOP ICR1 +   clkI/O/   (  NO prescaler)
-      TCCR1B=_BV(WGM13) |_BV(CS12)|_BV(CS10);       //  PWM, Phase and Frequency Correct with TOP ICR1 +   clkI/O/1024 (From prescaler)
-      
-      ICR1=DarbinisPeriodas ;        // compare match register 16MHz/256/2Hz
-      
-      OCR1A = NeigiamasOCR1A;
-      OCR1B = TeigiamasOCR1B;
-           
-      
-      GTCCR = 0; // release all timers
+/**************************************************************************************************************/
+/********************INTERUPTS*********************************************************************************/
+/**************************************************************************************************************/
+//Greitas INTERUPTAS ant InputMinimalusLygisPasiektas
+void IsjungtiTranzistoriuPWM(void)
+{
+  TCCR1B &= 0B11111000 ;
+  TCNT1H = 0; 
+  TCNT1L=0;
+  digitalWrite (OutputTranzistorAPin, LOW);
+  digitalWrite (OutputTranzistorBPin, LOW);
+    
+  Serial.println ("Ijungiam PWM");    
   
 }
 
-void setup()
+//Greitas INTERUPTAS ant InputMaksimalusLygisPasiektas
+void IjungtiTranzistoriuPWM(void)
 {
- 
-    //noInterrupts();           // disable all interrupts
-    //setting ADC
-    ADCSRA =  bit (ADEN);                      // turn ADC on
-    ADCSRA |= bit (ADPS0) | bit (ADPS1) | bit (ADPS2);   // Seting Prescaler for  ADC clock --- >128
-    ADMUX  =  bit (REFS0) | (PeriodoPotenciometroPin & 0x07);    // AVcc and select input port
-    //interrupts();
+    ICR1  = DarbinisPeriodas ;// compare match register
+    OCR1A = NeigiamasOCR1A;   // turi dviguva buferi
+    OCR1B = TeigiamasOCR1B;   // turi dviguva buferi
 
-    //DEBUGING
-    Serial.begin(9600);
-    delay(1000);
-    Serial.println ("Test setup"); 
+  
+  TCCR1B |= (1<<CS12)|(1<<CS10) ;  // IJUNGIAM /1024 Prescaleri  (DEBUG)
+  //TCCR1B |=           (1<<CS10) ;  // IJUNGIAM /1 Prescaleri(Tiesiai opie prie 16Mhz)
+
+
+  Serial.println ("Ijungiam PWM");    
+
+  Serial.print ("Paskutine ADC reiksme:");    
+  Serial.println (adcReading);    
+  
+  Serial.print ("DarbinisPeriodas:");    
+  Serial.println (DarbinisPeriodas);   
+
+  Serial.print ("A tranzistoriaus frontas:");    
+  Serial.println (NeigiamasOCR1A);   
+
+  Serial.print ("A tranzistoriaus frontas:");    
+  Serial.println (TeigiamasOCR1B);   
+
+  Serial.println ("-----------------");   
+
+
+
+  
+}
+ 
+//Extra external inputs INTERUPTAS
+ISR(PCINT2_vect) 
+{
+  Serial.println("PCINT2_vect");
+   if (digitalRead(InputMazgasAEnablePin)==1)  
+   {
+      Serial.println("D4=1");
+   }
+   else
+   {
+       Serial.println("D4=0");
+   }   
+   
+    digitalWrite (OutputMazgasAktyvusPin, digitalRead(InputMazgasAEnablePin)==1);
 }
 
-
-// ADC complete ISR
+// ADC Nuskaitymas Ivyko INTERUPTAS
 ISR (ADC_vect)
 {
   adcReading = ADC;
   adcDone = true;  
 } 
 
-void loop()
+/**************************************************************************************************************/
+/********************Setupai***********************************************************************************/
+/**************************************************************************************************************/
+ 
+void SetupTranzistoriuPWM(void)
 {
-   
- // if last reading finished, process it
-  if (adcDone)
+      digitalWrite (OutputTranzistorAPin, LOW);
+      digitalWrite (OutputTranzistorBPin, LOW);
+
+      pinMode(OutputTranzistorAPin, OUTPUT);
+      pinMode(OutputTranzistorBPin, OUTPUT);
+
+      //Reseting Timer1
+      TCNT1H = 0; // set timer1 high byte to 0
+      TCNT1L = 0; // set timer1 low byte to 0
+      
+      //Setting Timers mode
+      TCCR1A = _BV(COM1A1) | _BV(COM1B1) | _BV(COM1B0)  ;   //seting Timer1 Pins 9 ir 10
+      TCCR1B=_BV(WGM13)  ;            //  PWM, Phase and Frequency Correct with ICR1   NO CLOCK Source.(TIMERIS ISJUNGAS)
+      
+
+}
+
+void SetupADCInterupts(void)
+{
+    noInterrupts();
+    ADCSRA =  bit (ADEN);                      // turn ADC on
+    ADCSRA |= bit (ADPS0) | bit (ADPS1) | bit (ADPS2);   // Seting Prescaler for  ADC clock --- >128
+    ADMUX  =  bit (REFS0) | (PeriodoPotenciometroPin & 0x07);    // AVcc and select input port  
+    interrupts();  
+}
+
+void SetupFastExternalInterrupts(void)
+{
+    digitalWrite (InputMaksimalusLygisPasiektasPin, HIGH);
+    digitalWrite (InputMinimalusLygisPasiektasPin, HIGH); 
+      
+    pinMode(InputMaksimalusLygisPasiektasPin, INPUT_PULLUP);
+    pinMode(InputMinimalusLygisPasiektasPin, INPUT_PULLUP);
+
+        
+    attachInterrupt (digitalPinToInterrupt (InputMaksimalusLygisPasiektasPin), IsjungtiTranzistoriuPWM, FALLING ); 
+    attachInterrupt (digitalPinToInterrupt (InputMinimalusLygisPasiektasPin), IjungtiTranzistoriuPWM, FALLING ); 
+}
+
+void SetupExtraExternalInterrupts()
+{  
+  noInterrupts();    // switch interrupts off while messing with their settings       
+  
+  digitalWrite(InputMazgasAEnablePin, HIGH);   // Configure internal pull-up resistor
+  pinMode(InputMazgasAEnablePin, INPUT_PULLUP);    // Pin A2 is input to which a switch is connected
+  
+  PCIFR = 0;                // cleaning External Interrupt register
+  PCICR = bit (PCIE2);      // Enable PCINT1 interrupt
+  PCMSK2 =  bit (PCINT20);  // Enabling interupt on PCINT20 = digital Pin 4
+  
+  interrupts();  
+}
+
+void SetupOutputPins(void)
+{
+   pinMode(OutputMazgasAktyvusPin, OUTPUT);
+}
+
+void setup()
+{
+    //DEBUGING
+    Serial.begin(9600);
+    
+    SetupADCInterupts();
+    SetupFastExternalInterrupts();
+    SetupExtraExternalInterrupts(); 
+    SetupOutputPins(); 
+    SetupTranzistoriuPWM();
+    
+    //RestartTranzistors();    
+}
+ 
+/**************************************************************************************************************/
+/********************Pagrindinis Ciklas************************************************************************/
+/**************************************************************************************************************/
+ 
+
+void TikrintiADC(void)
+{
+    // if last reading finished, process it
+    if (adcDone)
     {      
-      Serial.print ("adcReading:");    
-      Serial.println (adcReading);    
-
-      unsigned long GalimasReguliavimas= MaksimalusPeriodas-MinimalusPeriodas;
-
-      unsigned long TikrasPeriodas= GalimasReguliavimas*adcReading/1023+MinimalusPeriodas;
+      unsigned long GalimasReguliavimasDiapazonas= MaksimalusPeriodas-MinimalusPeriodas;
+      unsigned long TikrasPeriodas= GalimasReguliavimasDiapazonas*adcReading/1023+MinimalusPeriodas;
       Serial.print ("TikrasPeriodas:");    
       Serial.println (TikrasPeriodas);   
-
   
       DarbinisPeriodas = TikrasPeriodas/2 ;
-
-
-
 
       TeigiamasOCR1B=DarbinisPeriodas/2-PersijungimoPeriodas/2;
       NeigiamasOCR1A=TeigiamasOCR1B+PersijungimoPeriodas;
 
-
-      Serial.print ("DarbinisPeriodas:");    
-      Serial.println (DarbinisPeriodas);   
-
-      Serial.print ("NeigiamasOCR1A:");    
-      Serial.println (NeigiamasOCR1A);   
-
-      Serial.print ("TeigiamasOCR1B:");    
-      Serial.println (TeigiamasOCR1B);   
-
-      Serial.println ("-----------------");   
-
-      
-
-      RestartTranzistors();//DarbinisPeriodas, TeigiamasOCR1B, NeigiamasOCR1A);
-
       adcStarted = false;
       adcDone = false;
-      delay (5000);
     }
     
-  // if we aren't taking a reading, start a new one
-  if (!adcStarted)
+    // Pradek Nauja ADC Skaityma;
+    if (!adcStarted)
     {
-    adcStarted = true;
-    // start the conversion
-    ADCSRA |= bit (ADSC) | bit (ADIE);
+      adcStarted = true;
+      // start the conversion
+      ADCSRA |= bit (ADSC) | bit (ADIE);
     }    
-  
-  // do other stuff here
 }
+
+void loop()
+{
+   TikrintiADC();
+}
+
+
+
+
 
 
 
