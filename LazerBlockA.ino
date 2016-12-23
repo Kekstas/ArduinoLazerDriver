@@ -158,12 +158,12 @@ void InputMinimalusLygisPasiektas()
 void IsjungtiBaterijosKrovima(void)
 {
           
-  //TCCR1B=0;   //uzseinam Timeri i Normalia busena.  
-  //TCCR1A = _BV(COM1B1) | _BV(COM1A1)   ;   //seting Timer1 Pins 9 ir 10 ; Clear on Outout Compare  
-  //TCCR1C=_BV(FOC1A)|_BV(FOC1B);      // Force Outout Compare
-  //TCCR1A=0;
-  //TIFR1=0;    // cleaning Interrupts;   
-  //TCCR1B=_BV(CS10);
+  TCCR1B=0;   //uzseinam Timeri i Normalia busena.  
+  TCCR1A = _BV(COM1B1) | _BV(COM1A1)   ;   //seting Timer1 Pins 9 ir 10 ; Clear on Outout Compare  
+  TCCR1C=_BV(FOC1A)|_BV(FOC1B);      // Force Outout Compare
+  TCCR1A=0;
+  TIFR1=0;    // cleaning Interrupts;   
+  TCCR1B=_BV(CS10);
 
   
   DabartineMashinosBusena=IMasinosBusenos::Isjungta;
@@ -178,25 +178,20 @@ void IjungtiBaterijosKrovima(void)
     //Setting Timers mode
     //TCCR1A = _BV(COM1B1) | _BV(COM1A1) | _BV(COM1A0)  ;   //seting Timer1 Pins 9 ir 10 ; A-tranzas startuoja Uzssidares, B-Atsidares
     TCCR1A=0;
-    //TCCR1B=_BV(WGM13) ;            //  PWM, Phase and Frequency Correct with ICR1   NO CLOCK Source.(TIMERIS ISJUNGAS)
-    TCCR1B=0;
+    TCCR1B=_BV(WGM13) ;            //  PWM, Phase and Frequency Correct with ICR1   NO CLOCK Source.(TIMERIS ISJUNGAS)
+    //TCCR1B=0;
     
     TCNT1=0;  //  set timer1 to 0
     
-    //ICR1  = DarbinisPeriodas ;// compare match register
-    //OCR1A = NeigiamasOCR1A;   // turi dviguva buferi
-    //OCR1B = TeigiamasOCR1B;   // turi dviguva buferi
+    ICR1  = DarbinisPeriodas ;// compare match register
+    OCR1A = NeigiamasOCR1A;   // turi dviguva buferi
+    OCR1B = TeigiamasOCR1B;   // turi dviguva buferi
     
-    //TCCR1B |= (1<<CS12)|(1<<CS10) ;  // JUNGIAM timeri prie /1024 Prescalerio  (DEBUG)
-    //TCCR1B |=           (1<<CS10) ;  //JUNGIAM timeri Tiesiai prie prie 16Mhz
+    TCCR1B |= _BV(CS12)|_BV(CS10) ;  // JUNGIAM timeri prie /1024 Prescalerio  (DEBUG)
+    //TCCR1B |=           _BV(CS10) ;  //JUNGIAM timeri Tiesiai prie prie 16Mhz
     
 
-
-    unsigned int counter1 = TCNT1;
-    Serial.print("counter1=");
-    Serial.println(counter1);
-
-    
+ 
 
     DabartineMashinosBusena=IMasinosBusenos::Kraunam;
     Serial.println("DabartineMashinosBusena=Kraunam");
@@ -209,7 +204,7 @@ void IjungtiIskrovima( )
   Serial.print("Timerio Busena Pries:");
   PrintTimer1();
  ///////////SETTING Timer1////////////////////////
-      GTCCR = (1<<TSM);//|(0<<PSRASY)|(1<<PSRSYNC);// halt timer0 and timer1 ; clears prescalers       
+      GTCCR = _BV(TSM);//|_BV(PSRSYNC);// halt timer0 and timer1 ; clears prescalers       
       
       //Setting Timers mode
       TCCR1A=0;
@@ -221,9 +216,9 @@ void IjungtiIskrovima( )
       ICR1  = LazerioIskrovimoIlgis;
 
       //TCNT1=65534;  //  set timer1 to 0
-      TCNT1=0;  //  set timer1 to 0
+      TCNT1=5;  //  set timer1 to 0
 
-      GTCCR = (1<<TSM)|(0<<PSRASY)|(1<<PSRSYNC);// halt timer0 and timer1 ; clears prescalers       
+      GTCCR = _BV(TSM)|_BV(PSRSYNC);// halt timer0 and timer1 ; clears prescalers       
       
       TIFR1=0;    // cleaning Interrupts; 
       TIMSK1=  _BV(ICIE1)|_BV(TOIE1)|_BV(OCIE1A); // enabling Overflow Interrupt; 
@@ -371,7 +366,7 @@ ISR(TIMER1_CAPT_vect)
     Serial.println("Timer1 Capture Event");    
 
     TCNT1=0;
- //   StateMashine(IEvent::LazerChargeTimePassed);
+    StateMashine(IEvent::LazerChargeTimePassed);
 }
 
 
@@ -481,21 +476,21 @@ void setup()
     //DEBUGING
     Serial.begin(9600);
     
-    noInterrupts();
+    
       SetupADCInterupts();
       SetupFastExternalInterrupts();
       SetupExtraExternalInterrupts(); 
       SetupOutputPins(); 
       
       Serial.println ("Setup Finish-----------------");
-     interrupts();  
+    
 
 
     // cleaning interupts
      TIMSK0=0; TIFR0=0;
      TIMSK1=0; TIFR1=0;    
      TIMSK2=0; TIFR2=0;
-      
+
 }
  
 /**************************************************************************************************************/
@@ -623,6 +618,8 @@ void TikrintiADC(void)
       
     }    
 }
+
+
 
 void loop()
 {
