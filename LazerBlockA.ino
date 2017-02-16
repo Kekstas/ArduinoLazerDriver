@@ -16,10 +16,11 @@
 #define MaksimalusPersijungimoPeriodas  160     // =16MHz*5us    x--x    Tikras 
 #define MinimalusPersijungimoPeriodas  80     // =16MHz*5us    x--x    Tikras 
         
-#define  MaksimalusLazerioIskrovimoPeriodas    10000    // =16MHz*5000us /8
-#define  MinimalusLazerioIskrovimoPeriodas     20000    // =16MHz*10000us/8
-        
+#define  MaksimalusLazerioIskrovimoPeriodas     160000     // =16MHz*10000us
+#define  MinimalusLazerioIskrovimoPeriodas       80000     // =16MHz*5000us 
+                                               
 
+ 
 
 //#define LazerioPWMPeriodas  1     // =255/16MHz =  16us  
 //#define LazerioPWMPeriodas  2     // =255*8/16MHz =  127us
@@ -58,7 +59,7 @@ volatile unsigned long NeigiamasOCR1A;
 
 
 volatile unsigned long LazerioIskrovimoIlgis = 64000;    
-volatile unsigned long LazerioIskrovimoPWM=127;  // =Puse Laiko
+volatile  byte LazerioIskrovimoPWM=127;  // =Puse Laiko
 
 
 //volatile bool BlokoBusenaAktyvi=false;
@@ -89,14 +90,17 @@ enum IEvent: byte
   BaterijaPilna,
   ChargingPeriodsChanged,
   ExtraExternalInputs2Changed,
-  LazerChargeTimePassed
+  TIMER0TimePassed
 };
 
 
 volatile IBaterijosBusenos DabartineBaterijosBusena=IBaterijosBusenos::Tuscia;
 volatile IMasinosBusenos DabartineMashinosBusena=IMasinosBusenos::Inicijuojama;
 
+unsigned long Timer0PasedTicks=0; 
+unsigned long Timer0StopAtTick=0; 
 
+ 
 
 /**************************************************************************************************************/
 /********************DEBUG*********************************************************************************/
@@ -113,27 +117,27 @@ void PrintTimer1( )
     unsigned int zICR1 = ICR1;
  
 
-    Serial.print("### counter1=");
-    Serial.print(zTCNT1);    
+    //Serial.print("### counter1=");
+    //Serial.print(zTCNT1);    
     
-    Serial.print(" TCCR1A=");
-    Serial.print(zTCCR1A);    
-    
-    
-    Serial.print(" TCCR1B=");
-    Serial.print(zTCCR1B);    
+    //Serial.print(" TCCR1A=");
+    //Serial.print(zTCCR1A);    
     
     
-    Serial.print(" OCR1A=");
-    Serial.print(zOCR1A);    
+    //Serial.print(" TCCR1B=");
+    //Serial.print(zTCCR1B);    
     
     
-    Serial.print(" OCR1B=");
-    Serial.print(zOCR1B);    
+    //Serial.print(" OCR1A=");
+    //Serial.print(zOCR1A);    
     
     
-    Serial.print(" ICR1=");
-    Serial.println(zICR1);    
+    //Serial.print(" OCR1B=");
+    //Serial.print(zOCR1B);    
+    
+    
+    //Serial.print(" ICR1=");
+    //Serial.println(zICR1);    
     
 }
 
@@ -167,7 +171,7 @@ void IsjungtiBaterijosKrovima(void)
 
   
   DabartineMashinosBusena=IMasinosBusenos::Isjungta;
-  Serial.println("DabartineMashinosBusena=Isjungta");
+  //Serial.println("DabartineMashinosBusena=Isjungta");
   
 }
 
@@ -176,8 +180,8 @@ void IjungtiBaterijosKrovima(void)
 {
      
     //Setting Timers mode
-    //TCCR1A = _BV(COM1B1) | _BV(COM1A1) | _BV(COM1A0)  ;   //seting Timer1 Pins 9 ir 10 ; A-tranzas startuoja Uzssidares, B-Atsidares
-    TCCR1A=0;
+    TCCR1A = _BV(COM1B1) | _BV(COM1A1) | _BV(COM1A0)  ;   //seting Timer1 Pins 9 ir 10 ; A-tranzas startuoja Uzssidares, B-Atsidares
+    //TCCR1A=0;
     TCCR1B=_BV(WGM13) ;            //  PWM, Phase and Frequency Correct with ICR1   NO CLOCK Source.(TIMERIS ISJUNGAS)
     //TCCR1B=0;
     
@@ -187,46 +191,24 @@ void IjungtiBaterijosKrovima(void)
     OCR1A = NeigiamasOCR1A;   // turi dviguva buferi
     OCR1B = TeigiamasOCR1B;   // turi dviguva buferi
     
-    TCCR1B |= _BV(CS12)|_BV(CS10) ;  // JUNGIAM timeri prie /1024 Prescalerio  (DEBUG)
-    //TCCR1B |=           _BV(CS10) ;  //JUNGIAM timeri Tiesiai prie prie 16Mhz
+    //TCCR1B |= _BV(CS12)|_BV(CS10) ;  // JUNGIAM timeri prie /1024 Prescalerio  (DEBUG)
+    TCCR1B |=           _BV(CS10) ;  //JUNGIAM timeri Tiesiai prie prie 16Mhz
     
 
  
 
     DabartineMashinosBusena=IMasinosBusenos::Kraunam;
-    Serial.println("DabartineMashinosBusena=Kraunam");
-   
+    //Serial.println("DabartineMashinosBusena=Kraunam");
+    DabartineBaterijosBusena=IBaterijosBusenos::Pilna;  Timer0For(LazerioIskrovimoIlgis);   // DEBUG
+    
 }
 
 
 void IjungtiIskrovima( )
-{
-  Serial.print("Timerio Busena Pries:");
-  PrintTimer1();
- ///////////SETTING Timer1////////////////////////
-      GTCCR = _BV(TSM);//|_BV(PSRSYNC);// halt timer0 and timer1 ; clears prescalers       
-      
-      //Setting Timers mode
-      TCCR1A=0;
-      //TCCR1B |= _BV(WGM12)|   _BV(WGM13)|       _BV(CS12)|_BV(CS10) ;  //  CTC mode,   ICR1 as top   ;     JUNGIAM timeri prie /1024 Prescalerio  (DEBUG)
-      TCCR1B = _BV(WGM13)|       _BV(CS12)|_BV(CS10) ;  //  PWM, Phase and Frequency Correct mode,   ICR1 as top   ;     JUNGIAM timeri prie /1024 Prescalerio  (DEBUG)
-
-      OCR1A  = 2000;
-      OCR1B  = 0;
-      ICR1  = LazerioIskrovimoIlgis;
-
-      //TCNT1=65534;  //  set timer1 to 0
-      TCNT1=5;  //  set timer1 to 0
-
-      GTCCR = _BV(TSM)|_BV(PSRSYNC);// halt timer0 and timer1 ; clears prescalers       
-      
-      TIFR1=0;    // cleaning Interrupts; 
-      TIMSK1=  _BV(ICIE1)|_BV(TOIE1)|_BV(OCIE1A); // enabling Overflow Interrupt; 
- 
-     GTCCR = 0; // release all timers
-     PrintTimer1();
+{  
+ ///////////SETTING Timer0////////////////////////
+      Timer0For(LazerioIskrovimoIlgis);
 ///////////SETTING Timer2////////////////////////
-
 
       TCNT2 = 0; // set timer2 byte to 0                  
       //Setting Timers2 mode
@@ -235,11 +217,9 @@ void IjungtiIskrovima( )
       //TCCR2B=0;
   
       DabartineMashinosBusena=IMasinosBusenos::IsKraunam;
-      Serial.println("DabartineMashinosBusena=IsKraunam***********************************");
-
-
-      PrintTimer1();
-
+      //Serial.println("DabartineMashinosBusena=IsKraunam***********************************");
+ 
+      //PrintTimer1();
  
 }
 
@@ -247,28 +227,16 @@ void IjungtiIskrovima( )
 
 void IsjungtiIskrovima( )
 {
- ///////////SETTING Timer1////////////////////////
-      TIMSK1=  0; //disablinginterupts;
-      
-      //TCNT1H = 0; // set timer1 high byte to 0
-      //TCNT1L = 0; // set timer1 low byte to 0
-      TCNT1=0;  //  set timer1 to 0
-      
-      //Setting Timers mode      
-      TCCR1B=0  ;            //NORMAL   NO CLOCK Source.(TIMERIS ISJUNGAS)
-
-      
-      TIFR1=0;    // cleaning  Interrupts; 
-
-///////////SETTING Timer2////////////////////////
+    ///////////SETTING Timer2////////////////////////
       
       TCCR2B=0;   //uzseinam Timeri i Normalia busena.  
       TCCR2A =  _BV(COM2A1)   ;   //seting Timer1 Pins 11 ; Clear on Outout Compare  
       TCCR2B=_BV(FOC2A);      // Force Outout Compare
   
       DabartineMashinosBusena=IMasinosBusenos::CikloPradzia;
-      Serial.println("DabartineMashinosBusena=CikloPradzia");
- 
+      //Serial.println("DabartineMashinosBusena=CikloPradzia");
+  
+      DabartineBaterijosBusena=IBaterijosBusenos::Tuscia ; StateMashine(IEvent::TIMER0TimePassed); //DEBUG
 }
 
 
@@ -284,13 +252,13 @@ void BaterijaStateMashine(IEvent event)
           digitalWrite (OutputBusenaBaterijaTusciaPin, LOW);
           digitalWrite (OutputBusenaBaterijaPilnaPin, HIGH);
           DabartineBaterijosBusena=IBaterijosBusenos::Pilna;
-          Serial.println("DabartineBaterijosBusena=Pilna");
+          //Serial.println("DabartineBaterijosBusena=Pilna");
         break;
       case IEvent::BaterijaTuscia:
         digitalWrite (OutputBusenaBaterijaTusciaPin, HIGH);
         digitalWrite (OutputBusenaBaterijaPilnaPin, LOW);
         DabartineBaterijosBusena=IBaterijosBusenos::Tuscia;
-        Serial.println("DabartineBaterijosBusena=Tuscia");       
+        //Serial.println("DabartineBaterijosBusena=Tuscia");       
       break;
     }
 }
@@ -298,8 +266,8 @@ void BaterijaStateMashine(IEvent event)
  
 void StateMashine(IEvent event)
 {
-   Serial.print("StateMashine Event:");
-   Serial.println(event);
+   //Serial.print("StateMashine Event:");
+   //Serial.println(event);
    
   
   switch(DabartineMashinosBusena)
@@ -322,7 +290,7 @@ void StateMashine(IEvent event)
           IjungtiIskrovima();
         }        
         break;
-      }
+      }      
     break;
     case IMasinosBusenos::Isjungta: 
       if (digitalRead(InputBlokoBusenaAktyviPin)==1 &&  DabartineBaterijosBusena==IBaterijosBusenos::Tuscia  )  
@@ -338,7 +306,7 @@ void StateMashine(IEvent event)
       
     break;
     case IMasinosBusenos::IsKraunam: 
-    if(event==IEvent::LazerChargeTimePassed)
+    if(event==IEvent::TIMER0TimePassed)
     {
       IsjungtiIskrovima();
     }
@@ -349,47 +317,45 @@ void StateMashine(IEvent event)
 }
 
 
-
-//Timer1 Overflow event 
-ISR(TIMER1_OVF_vect) 
+void Timer0For(unsigned long  ticks)
 {
-   PrintTimer1();
-    Serial.println("Timer1 Overflow");
-  //  StateMashine(IEvent::LazerChargeTimePassed);
+    //Serial.print("will wait for tiks");
+    //Serial.println(ticks);
+
+    
+    if  (ticks>255)
+    {
+      OCR0A = 255;
+      Timer0StopAtTick=ticks;
+    }
+    else
+    {
+       OCR0A=ticks;      
+       Timer0StopAtTick=1;       
+    }    
+    Timer0PasedTicks=0;
+    TCCR0A = 1;      
+    TCCR0B = 1;   
+          
+    TCNT0  = 0;  //  set timer1 to 0
+    TIFR0=0;    // cleaning Interrupts; 
+    TIMSK0=  _BV(TOIE0); // enabling Overflow Interrupt;       
 }
 
-//Timer/Counter1 Capture Event
-ISR(TIMER1_CAPT_vect) 
+//Timer0 Overflow event 
+ISR(TIMER0_OVF_vect) 
 {
-
-     PrintTimer1();
-    Serial.println("Timer1 Capture Event");    
-
-    TCNT1=0;
-    StateMashine(IEvent::LazerChargeTimePassed);
+    //TIMSK0= 0;
+    //StateMashine(IEvent::TIMER0TimePassed);            
+    Timer0PasedTicks=Timer0PasedTicks+OCR0A+1;    
+    //Serial.println("a");    
+    if(Timer0PasedTicks>=Timer0StopAtTick)
+    {
+      //Serial.println(Timer0PasedTicks);    
+      TIMSK0= 0;
+      StateMashine(IEvent::TIMER0TimePassed);
+    }
 }
-
-
-
-//Timer/Counter1 Compare Match B
-//ISR(TIMER1_COMPB_vect) 
-//{
-//   PrintTimer1();   
-//   Serial.println("Timer1 Compare Match B");    
-//}
-
-
-
-//Timer/Counter1 Compare Match A
-ISR(TIMER1_COMPA_vect) 
-{
-   PrintTimer1();
-   Serial.println("Timer1 Compare Match A");
-   //StateMashine(IEvent::LazerChargeTimePassed);
-}
-
-
-
  
 //Extra external inputs INTERUPTAS
 ISR(PCINT2_vect) 
@@ -482,7 +448,7 @@ void setup()
       SetupExtraExternalInterrupts(); 
       SetupOutputPins(); 
       
-      Serial.println ("Setup Finish-----------------");
+      //Serial.println ("Setup Finish-----------------");
     
 
 
@@ -515,50 +481,52 @@ void SkaiciuokPeriodus()
     TeigiamasOCR1B=(DarbinisPeriodas-PersijungimoPeriodas)/2;
     NeigiamasOCR1A=TeigiamasOCR1B+PersijungimoPeriodas;
 
-    Serial.println("SkaiciuokPeriodus done");        
+    //Serial.println("SkaiciuokPeriodus done");        
 
-    Serial.print ("Paskutine ADC reiksme:");    
-    Serial.println (PaskutineADCReiksme[PeriodoPotenciometroPin]);    
+    //Serial.print ("Paskutine ADC reiksme:");    
+    //Serial.println (PaskutineADCReiksme[PeriodoPotenciometroPin]);    
     
-    Serial.print ("DarbinisPeriodas:");    
-    Serial.println (DarbinisPeriodas);   
+    //Serial.print ("DarbinisPeriodas:");    
+    //Serial.println (DarbinisPeriodas);   
   
-    Serial.print ("A tranzistoriaus frontas:");    
-    Serial.println (NeigiamasOCR1A);   
+    //Serial.print ("A tranzistoriaus frontas:");    
+    //Serial.println (NeigiamasOCR1A);   
   
-    Serial.print ("B tranzistoriaus frontas:");    
-    Serial.println (TeigiamasOCR1B);   
+    //Serial.print ("B tranzistoriaus frontas:");    
+    //Serial.println (TeigiamasOCR1B);   
   
-    Serial.println ("-----------------");  
+    //Serial.println ("-----------------");  
     
 }
 
 void SkaiciuokLazerioIskrovimoIlgi()
 {
    LazerioIskrovimoIlgis = map(PaskutineADCReiksme[LazerioIskrovimoIlgisPotenciometroPin], 0, 1023, MinimalusLazerioIskrovimoPeriodas, MaksimalusLazerioIskrovimoPeriodas);       
-   Serial.println("SkaiciuokLazerioIskrovimoIlgi done");        
+   //Serial.println("SkaiciuokLazerioIskrovimoIlgi done");        
 
-   Serial.print ("Paskutine ADC reiksme:");    
-   Serial.println (PaskutineADCReiksme[LazerioIskrovimoIlgisPotenciometroPin]); 
+   //Serial.print ("Paskutine ADC reiksme:");    
+   //Serial.println (PaskutineADCReiksme[LazerioIskrovimoIlgisPotenciometroPin]); 
     
-   Serial.print("LazerioIskrovimoIlgis=");        
-   Serial.println(LazerioIskrovimoIlgis);     
+   //Serial.print("LazerioIskrovimoIlgis=");        
+   //Serial.println(LazerioIskrovimoIlgis);     
    
-   Serial.println ("-----------------");        
+   //Serial.println ("-----------------");        
 }
 
 void SkaiciuokLazerioIskrovimoPWM()
 {
-  LazerioIskrovimoPWM = map(PaskutineADCReiksme[LazerioIskrovimoPWMPotenciometroPin], 0, 1023, 0, 255);
-  Serial.println("SkaiciuokLazerioIskrovimoPWM done");        
+   byte _lazerioIskrovimoPWM = map(PaskutineADCReiksme[LazerioIskrovimoPWMPotenciometroPin], 0, 1023, 0, 255);
+   LazerioIskrovimoPWM=_lazerioIskrovimoPWM;
+   
+  //Serial.println("SkaiciuokLazerioIskrovimoPWM done");        
 
-  Serial.print ("Paskutine ADC reiksme:");    
-  Serial.println (PaskutineADCReiksme[LazerioIskrovimoPWMPotenciometroPin]); 
+  //Serial.print ("Paskutine ADC reiksme:");    
+  //Serial.println (PaskutineADCReiksme[LazerioIskrovimoPWMPotenciometroPin]); 
   
-  Serial.print("LazerioIskrovimoPWM=");        
-  Serial.println(LazerioIskrovimoPWM);        
+  //Serial.print("LazerioIskrovimoPWM=");        
+  //Serial.println(LazerioIskrovimoPWM);        
 
-  Serial.println ("-----------------");  
+  //Serial.println ("-----------------");  
   
 }
 
